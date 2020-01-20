@@ -1,4 +1,5 @@
 import argparse
+import bandit_gen
 import numpy as np
 import random
 import sys
@@ -13,7 +14,7 @@ class ColumnEstimate:
         self.value_sum += value
 
     def mean(self):
-        return self.value_sum / len(self.values) if self.values else 999
+        return (self.value_sum / len(self.values)) if self.values else 0
 
 
 def best_lever_index(estimates):
@@ -34,7 +35,7 @@ def best_lever_index(estimates):
 def simulate_bandit(data, e=0):
     num_epochs, cols = data.shape
     estimates = [ColumnEstimate() for col in range(cols)]
-    ax_rx = []
+    ax_rx = [(-1, 0)]
 
     for epoch in range(num_epochs):
         if random.random() < e:
@@ -46,13 +47,26 @@ def simulate_bandit(data, e=0):
         estimates[ax].add_value(rx)
         ax_rx.append((ax, rx))
 
-    return sum(rx for ax, rx in ax_rx), np.array(ax_rx)
+    return ax_rx
 
+
+def simulate_for_average_rx(data=None, e=0, reps=1):
+    simulations = []
+    generate = data is None
+    for rep in range(reps):
+        if generate:
+            data = bandit_gen.generate_data(10, 1000, 1)
+        simulations.append(np.array(simulate_bandit(data, e))[:,1])
+
+    ave_rx = np.average(simulations, axis=0)
+    return np.divide(np.cumsum(ave_rx), np.arange(1, len(ave_rx) + 1))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulates an n-armed bandit')
-    parser.add_argument('-e', nargs='?', type=int, default=0,
+    parser.add_argument('-e', nargs='+', type=float, default=0,
                         help='epsilon for random non-greediness (default=0)')
+    parser.add_argument('-r', nargs='?', type=int, default=1,
+                        help='how many repeated trials to simulate (default=0)')
     parser.add_argument('infile', nargs='?', type=argparse.FileType('r'),
                         default=sys.stdin, help='File containing N numerical '
                         'values per step. The number of values must be constant '
@@ -63,7 +77,6 @@ if __name__ == '__main__':
     if data.shape[1] == 0:
         exit('Each row must contain at least 1 value')
 
-    score, ax_rx = simulate_bandit(data, argv.e)
-    cumave = np.divide(np.cumsum(ax_rx[:,1]), np.arange(1, len(ax_rx) + 1))
-    print(ax_rx)
-    print(cumave)
+    np.savetxt(sys.stdout, np.transpose([simulate_for_average_rx(data, e, argv.r) for e in argv.e]), fmt='%.6f')
+    print(argv.e)
+

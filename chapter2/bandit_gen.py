@@ -1,6 +1,13 @@
 import argparse
+import numpy as np
 import random
+import sys
 
+def generate_data(num_levers, epochs, stddev):
+    lever_means = [random.gauss(0, 1) for n in range(num_levers)]
+    return np.array([[random.gauss(mean, stddev) for mean in lever_means]
+            for epoch in range(epochs)
+            ])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -14,12 +21,6 @@ if __name__ == '__main__':
             metavar='STDDEV', default=1,
             help='stddev for values within a lever')
     argv = parser.parse_args()
+    np.savetxt(sys.stdout, generate_data(argv.n, argv.e, argv.s), fmt='%.6f')
 
-    N = argv.n
-    E = argv.e
-
-    lever_means = [random.gauss(0, 1) for n in range(N)]
-    for epoch in range(E):
-        epoch_data = ['%.2f' % random.gauss(mean, argv.s) for mean in lever_means]
-        print(' '.join(epoch_data))
 
