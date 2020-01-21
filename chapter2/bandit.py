@@ -35,7 +35,7 @@ def best_lever_index(estimates):
 def simulate_bandit(data, e=0):
     num_epochs, cols = data.shape
     estimates = [ColumnEstimate() for col in range(cols)]
-    ax_rx = [(-1, 0)]
+    rewards = []
 
     for epoch in range(num_epochs):
         if random.random() < e:
@@ -45,25 +45,32 @@ def simulate_bandit(data, e=0):
         
         rx = data[epoch, ax]
         estimates[ax].add_value(rx)
-        ax_rx.append((ax, rx))
+        rewards.append(rx)
 
-    return ax_rx
+    return rewards
 
 
-def simulate_for_average_rx(data=None, e=0, reps=1):
+def simulate_averages(data=None, e=0, reps=1):
     simulations = []
     generate = data is None
     for rep in range(reps):
         if generate:
             data = bandit_gen.generate_data(10, 1000, 1)
-        simulations.append(np.array(simulate_bandit(data, e))[:,1])
+        rewards = simulate_bandit(data, e)
+        best_possible = np.max(data, axis=1)
+        picked_best = np.equal(best_possible, rewards)
+        simulations.append((rewards, picked_best))
 
     ave_rx = np.average(simulations, axis=0)
-    return np.divide(np.cumsum(ave_rx), np.arange(1, len(ave_rx) + 1))
+    return compute_cumulative_average(ave_rx)
+
+
+def compute_cumulative_average(a):
+    return np.divide(np.cumsum(a, axis=1), np.arange(1, 1001))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulates an n-armed bandit')
-    parser.add_argument('-e', nargs='+', type=float, default=0,
+    parser.add_argument('-e', nargs='+', type=float, default=[0],
                         help='epsilon for random non-greediness (default=0)')
     parser.add_argument('-r', nargs='?', type=int, default=1,
                         help='how many repeated trials to simulate (default=0)')
@@ -77,6 +84,10 @@ if __name__ == '__main__':
     if data.shape[1] == 0:
         exit('Each row must contain at least 1 value')
 
-    np.savetxt(sys.stdout, np.transpose([simulate_for_average_rx(data, e, argv.r) for e in argv.e]), fmt='%.6f')
+    sim_data = np.array([simulate_averages(data, e, argv.r) for e in argv.e])[:,0,:]
+    epoch_major = np.transpose(sim_data)
+    print(epoch_major)
+
+    np.savetxt(sys.stdout, epoch_major, fmt='%.6f')
     print(argv.e)
 
