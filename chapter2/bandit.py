@@ -4,59 +4,30 @@ import numpy as np
 import random
 import sys
 
-class ColumnEstimate:
-    def __init__(self):
-        self.values = []
-        self.value_sum = 0
+from averagebandit import *
 
-    def add_value(self, value):
-        self.values.append(value)
-        self.value_sum += value
-
-    def mean(self):
-        return (self.value_sum / len(self.values)) if self.values else 0
-
-
-def best_lever_index(estimates):
-    best_levers = [0]
-    best_mean = estimates[0].mean()
-
-    for lever_idx, lever in enumerate(estimates):
-        cur_mean = lever.mean()
-        if best_mean < cur_mean:
-            best_levers = [lever_idx]
-            best_mean = cur_mean
-        elif best_mean == cur_mean:
-            best_levers.append(lever_idx)
-
-    return random.choice(best_levers)
-
-
-def simulate_bandit(data, e=0):
+def simulate_bandit(bandit, data):
     num_epochs, cols = data.shape
     estimates = [ColumnEstimate() for col in range(cols)]
     rewards = []
 
     for epoch in range(num_epochs):
-        if random.random() < e:
-            ax = random.randrange(cols)
-        else:
-            ax = best_lever_index(estimates)
-        
+        ax = bandit.get_action()
         rx = data[epoch, ax]
-        estimates[ax].add_value(rx)
+        bandit.observe(rx)
         rewards.append(rx)
 
     return rewards
 
 
-def simulate_averages(data=None, e=0, reps=1):
+def simulate_averages(bandit, data=None, reps=1, epochs=1000):
     simulations = []
     generate = data is None
     for rep in range(reps):
+        bandit.reset()
         if generate:
-            data = bandit_gen.generate_data(10, 1000, 1)
-        rewards = simulate_bandit(data, e)
+            data = bandit_gen.generate_data(10, epochs, 1)
+        rewards = simulate_bandit(bandit, data)
         best_possible = np.max(data, axis=1)
         picked_best = np.equal(best_possible, rewards)
         simulations.append((rewards, picked_best))
@@ -66,7 +37,7 @@ def simulate_averages(data=None, e=0, reps=1):
 
 
 def compute_cumulative_average(a):
-    return np.divide(np.cumsum(a, axis=1), np.arange(1, 1001))
+    return np.divide(np.cumsum(a, axis=1), np.arange(1, a.shape[1] + 1))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulates an n-armed bandit')
@@ -84,7 +55,7 @@ if __name__ == '__main__':
     if data.shape[1] == 0:
         exit('Each row must contain at least 1 value')
 
-    sim_data = np.array([simulate_averages(data, e, argv.r) for e in argv.e])[:,0,:]
+    sim_data = np.array([simulate_averages(AverageBandit(10, e=e), data, argv.r) for e in argv.e])[:,0,:]
     epoch_major = np.transpose(sim_data)
     print(epoch_major)
 
